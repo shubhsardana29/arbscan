@@ -1,6 +1,6 @@
 /**
- * CoinDCX — uses polling since their public WS is limited
- * Polls /api/v1/ticker every 2 seconds
+ * CoinDCX — uses REST polling since their public WS requires legacy Socket.io v2
+ * Polls /exchange/ticker every 2 seconds
  */
 const axios = require('axios');
 const { updatePrice } = require('../priceStore');
@@ -26,11 +26,13 @@ function connectCoinDCX(symbols, onUpdate) {
         const key = SYMBOL_MAP[symbol];
         const ticker = tickers.find(t => t.market === key);
         if (ticker) {
-          // CoinDCX gives bid, ask directly
           const bid = parseFloat(ticker.bid || ticker.last_price);
           const ask = parseFloat(ticker.ask || ticker.last_price);
-          if (!isNaN(bid) && !isNaN(ask)) {
-            updatePrice('coindcx', symbol, bid, ask);
+          if (!isNaN(bid) && !isNaN(ask) && bid > 0 && ask > 0) {
+            // Mocking depth since public API only gives top of book
+            const bids = [{ price: bid, qty: 999999 }];
+            const asks = [{ price: ask, qty: 999999 }];
+            updatePrice('coindcx', symbol, bids, asks);
             onUpdate('coindcx', symbol);
           }
         }

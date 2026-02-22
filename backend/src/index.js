@@ -6,8 +6,11 @@ const cors = require('cors');
 const { connectBinance } = require('./connectors/binance');
 const { connectCoinDCX } = require('./connectors/coindcx');
 const { connectBitkub } = require('./connectors/bitkub');
-const { detectArbitrage } = require('./arbitrageEngine');
+const { detectArbitrage, engineEvents } = require('./arbitrageEngine');
 const { getAllPrices } = require('./priceStore');
+const { getAllBalances } = require('./balanceStore');
+const { logTrade } = require('./tradeLogger');
+const { runBacktest } = require('../scripts/backtest');
 const { SYMBOLS } = require('./config');
 
 const app = express();
@@ -24,9 +27,24 @@ app.get('/api/prices', (req, res) => {
   res.json(getAllPrices());
 });
 
+// REST: get current virtual balances
+app.get('/api/balances', (req, res) => {
+  res.json(getAllBalances());
+});
+
 // REST: health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// REST: run backtest
+app.get('/api/backtest', async (req, res) => {
+  try {
+    const report = await runBacktest();
+    res.json(report);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // Stats tracking
@@ -38,35 +56,43 @@ const stats = {
 };
 
 // Called every time any exchange updates a price
-function onPriceUpdate(exchange, symbol) {
-  const opportunities = detectArbitrage(symbol);
+// Handle execution events
+engineEvents.on('trade_executed', (opp) => {
+  stats.totalOpportunities++;
+  stats.totalSimulatedProfit += opp.executedPnl;
 
-  if (opportunities.length > 0) {
-    opportunities.forEach(opp => {
-      stats.totalOpportunities++;
-      stats.totalSimulatedProfit += opp.pnl.netProfit;
-
-      if (!stats.bestOpportunity || opp.netProfit > stats.bestOpportunity.netProfit) {
-        stats.bestOpportunity = opp;
-      }
-
-      stats.opportunityHistory.unshift(opp);
-      if (stats.opportunityHistory.length > 100) {
-        stats.opportunityHistory.pop();
-      }
-
-      // Emit to all connected clients
-      io.emit('opportunity', opp);
-    });
+  if (!stats.bestOpportunity || opp.executedPnl > (stats.bestOpportunity.executedPnl || stats.bestOpportunity.netProfit)) {
+    stats.bestOpportunity = opp;
   }
 
-  // Always emit latest prices
-  io.emit('prices', getAllPrices());
+  stats.opportunityHistory.unshift(opp);
+  if (stats.opportunityHistory.length > 100) {
+    stats.opportunityHistory.pop();
+  }
+
+  io.emit('opportunity', opp);
+  io.emit('balances', getAllBalances());
   io.emit('stats', {
     totalOpportunities: stats.totalOpportunities,
     totalSimulatedProfit: parseFloat(stats.totalSimulatedProfit.toFixed(4)),
     bestOpportunity: stats.bestOpportunity
   });
+
+  logTrade(opp);
+});
+
+engineEvents.on('trade_failed', (opp) => {
+  // Still log failed trades for analytics
+  logTrade(opp);
+});
+
+// Called every time any exchange updates a price
+function onPriceUpdate(exchange, symbol) {
+  // detectArbitrage evaluates and optionally pushes to the 100ms queue
+  detectArbitrage(symbol);
+
+  // Always emit latest prices
+  io.emit('prices', getAllPrices());
 }
 
 // Socket.io connection
@@ -75,6 +101,7 @@ io.on('connection', (socket) => {
 
   // Send initial state
   socket.emit('prices', getAllPrices());
+  socket.emit('balances', getAllBalances());
   socket.emit('stats', {
     totalOpportunities: stats.totalOpportunities,
     totalSimulatedProfit: parseFloat(stats.totalSimulatedProfit.toFixed(4)),

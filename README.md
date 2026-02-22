@@ -46,13 +46,15 @@ ARBSCAN watches all three exchanges simultaneously, detects these gaps the momen
 
 | Feature | Description |
 |---------|-------------|
-| 🔴 **Live Price Feeds** | Binance via WebSocket, CoinDCX & Bitkub via REST polling |
-| ⚡ **Sub-100ms Detection** | Arbitrage engine runs on every price tick |
-| 💰 **Fee-Aware Calculation** | Subtracts taker fees from all three exchanges before flagging |
-| 📊 **P&L Simulation** | Shows simulated profit/loss on $1,000 capital per trade |
+| 🔴 **Live Price Feeds** | 100% WebSockets across Binance & Bitkub, 2s Polling on CoinDCX |
+| ⚡ **Realistic Latency** | 100ms execution queue with slippage evaluation |
+| 🏦 **Virtual Balances** | Live localized asset constraints and partial fills (IOC) |
+| 💰 **Fee-Aware Calculation** | Subtracts Maker/Taker fees from all three exchanges before flagging |
+| 📊 **P&L Simulation** | Shows explicit profit/loss based on real order book depth |
+| 📉 **Trade Logging** | Dumps successful and failed trades to local JSONL for analytics |
+| ⏳ **Historical Backtester** | Generates detailed ROI and execution stats based on logged simulator runs |
 | 📈 **Cumulative Chart** | Live Recharts area chart of simulated profit over time |
 | 🔢 **Spread Matrix** | Every buy→sell combo displayed as a color-coded grid |
-| 🔔 **Live Ticker Bar** | Flashes latest opportunity at the top of the dashboard |
 | 🐳 **Docker Ready** | One command to run the full stack |
 | 🎨 **OKLCH Design System** | Perceptually uniform colors, `IBM Plex Mono`, Bloomberg Terminal aesthetic |
 
@@ -81,7 +83,7 @@ cd arbscan
 cd backend
 npm install
 npm run dev
-# ✅ Backend running at http://localhost:4000
+# ✅ Backend running at http://localhost:4001
 ```
 
 **Step 3: Start the frontend** (new terminal)
@@ -102,8 +104,9 @@ docker-compose up --build
 | Service | URL |
 |---------|-----|
 | Dashboard | http://localhost:3000 |
-| Backend API | http://localhost:4000 |
-| Health Check | http://localhost:4000/api/health |
+| Backend API | http://localhost:4001 |
+| Health Check | http://localhost:4001/api/health |
+| Backtest Report | http://localhost:4001/api/backtest |
 
 ---
 
@@ -115,19 +118,20 @@ docker-compose up --build
 │                                                                 │
 │  ┌─────────────┐   ┌─────────────────┐   ┌──────────────────┐  │
 │  │   BINANCE   │   │    COINDCX      │   │     BITKUB       │  │
-│  │  WebSocket  │   │  REST poll/2s   │   │  REST poll/3s    │  │
-│  │  bookTicker │   │ /exchange/ticker│   │ /market/ticker   │  │
+│  │  WebSocket  │   │  REST Polling   │   │  WebSocket       │  │
+│  │@depth20@100ms│   │ 2s Interval L1  │   │ wss://api.bitkub │  │
 │  └──────┬──────┘   └────────┬────────┘   └────────┬─────────┘  │
-└─────────┼────────────────────┼────────────────────┼────────────┘
-          │                    │                    │
-          └────────────────────┼────────────────────┘
+│         │                   │                   │
+└─────────┼────────────────────┼───────────────────┼────────────┘
+          │                    │                   │
+          └────────────────────┼───────────────────┘
                                │
                     ┌──────────▼──────────┐
                     │    PRICE STORE      │
                     │  In-memory JS map   │
                     │  { symbol: {        │
-                    │    exchange: {       │
-                    │      bid, ask, ts   │
+                    │    ex: {            │
+                    │      bids[], asks[], ts │
                     │    }                │
                     │  } }                │
                     └──────────┬──────────┘
@@ -135,27 +139,29 @@ docker-compose up --build
                     ┌──────────▼──────────┐
                     │  ARBITRAGE ENGINE   │
                     │                     │
-                    │  • Check all pairs  │
-                    │  • Calc gross spread│
-                    │  • Subtract fees    │
-                    │  • Filter threshold │
-                    │  • Simulate P&L     │
+                    │  • Check valid paths│
+                    │  • Verify balances  │
+                    │  • Walk Order Book  │
+                    │  • 100ms Exec Queue │
+                    │  • Account for fees │
+                    │  • Debit balances   │
                     └──────────┬──────────┘
                                │  opportunities
-                    ┌──────────▼──────────┐
-                    │   EXPRESS + SOCKET  │
-                    │   REST API + WS     │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │   REACT DASHBOARD   │
-                    │                     │
-                    │  • Price table      │
-                    │  • Spread matrix    │
-                    │  • Opportunity feed │
-                    │  • P&L chart        │
-                    │  • Stats bar        │
-                    └─────────────────────┘
+                 ┌─────────────┼──────────────┐
+       trades.jsonl            │              │
+     ┌───────────┐  ┌──────────▼──────────┐   │
+     │ BACKTEST  ◄──┤   EXPRESS + SOCKET  │   │
+     │  ENGINE   ├──►   REST API + WS     │   │
+     └───────────┘  └──────────┬──────────┘   │
+                               │              │
+                    ┌──────────▼──────────┐   │
+                    │   REACT DASHBOARD   │   │
+                    │                     │   │
+                    │  • Price table      │   │
+                    │  • Spread matrix    │   │
+                    │  • Opportunity feed │   │
+                    │  • Historical Stats │   │
+                    └─────────────────────┘   │
 ```
 
 ### Project Structure
@@ -197,17 +203,17 @@ arbscan/
 Each exchange has a different API format. Every incoming price update gets normalized to a unified schema before being stored:
 
 ```js
-// Unified format — regardless of source exchange
+// Unified format — Level 2 Order Book Depth
 {
   exchange: "binance",   // or "coindcx" / "bitkub"
   symbol:   "BTC/USDT",
-  bid:      67200.50,    // highest price someone will buy at
-  ask:      67201.00,    // lowest price someone will sell at
+  bids:     [{ price: 67200.50, qty: 1.5 }, /* top levels */],
+  asks:     [{ price: 67201.00, qty: 2.1 }, /* top levels */],
   ts:       1714000000000
 }
 ```
 
-> **Bid vs Ask:** When you buy, you pay the **ask** (seller's price). When you sell, you receive the **bid** (buyer's price). The spread between them is where the exchange makes money.
+> **Liquidity & Slippage:** Real market orders consume order book volume. You pay the **ask** (seller's price) to buy and receive the **bid** (buyer's price) to sell. ARBSCAN algorithms mathematically walk up the simulated order book to compute your exact average execution price.
 
 ### 2. Bitkub Currency Conversion
 
@@ -225,26 +231,37 @@ This is what makes Bitkub interesting — currency friction creates persistent, 
 After every price update, the engine checks all buy→sell combinations across exchanges:
 
 ```js
-function detectArbitrage(symbol) {
-  for (const buyExchange of exchanges) {
-    for (const sellExchange of exchanges) {
-      if (buyExchange === sellExchange) continue;
+function processExecution(opp) {
+  // Re-evaluate against the EXACT moment's order book (100ms later)
+  const buyAsks = currentPrices[opp.buyOn].asks;
+  const sellBids = currentPrices[opp.sellOn].bids;
 
-      const buyPrice  = prices[buyExchange].ask;  // you pay the ask price to buy
-      const sellPrice = prices[sellExchange].bid;  // you receive the bid price when selling
+  // Verify virtual balances
+  const availableUSDT = getBalance(opp.buyOn, quoteCoin);
+  const availableCrypto = getBalance(opp.sellOn, baseCoin);
+  
+  let tradeCapital = Math.min(SIMULATION_CAPITAL, availableUSDT);
 
-      const grossSpread = ((sellPrice - buyPrice) / buyPrice) * 100;
-      const netProfit   = grossSpread - FEES[buyExchange] - FEES[sellExchange];
+  // Simulate slippage by walking up the order book
+  const buyResult = simulateBuyMarketOrder(buyAsks, tradeCapital);
+  let cryptoToSell = Math.min(buyResult.coinsObtained, availableCrypto);
+  const sellResult = simulateSellMarketOrder(sellBids, cryptoToSell);
 
-      if (netProfit >= MIN_PROFIT_THRESHOLD) {
-        // 🚨 Opportunity detected
-      }
-    }
+  // Market orders use the Taker fee rate
+  const grossSpread = ((sellResult.avgPrice - buyResult.avgPrice) / buyResult.avgPrice) * 100;
+  const netProfit   = grossSpread - FEES[opp.buyOn].taker - FEES[opp.sellOn].taker;
+
+  if (netProfit >= MIN_PROFIT_THRESHOLD) {
+    // 🚨 Execution passes! Deduct balances and commit simulated trade
+    debitBalance(opp.buyOn, quoteCoin, capitalSpent + buyFee);
+    creditBalance(opp.buyOn, baseCoin, buyResult.coinsObtained);
+  } else {
+    // ❌ Execution failed due to slippage or adverse selection in the 100ms delay window
   }
 }
 ```
 
-**Key insight:** You always buy at the *ask* (higher price) and sell at the *bid* (lower price). The gap between ask on one exchange and bid on another is your gross spread — minus fees.
+**Key insight:** By delaying the trade by 100ms, strictly checking virtual asset balances, backing every math operation with IOC limit order functions, and utilizing taker fees for market orders, ARBSCAN simulates hyper-realistic exchange mechanics.
 
 ### 4. P&L Simulation
 
@@ -285,9 +302,9 @@ Returns the current price snapshot across all exchanges and symbols.
 ```json
 {
   "BTC/USDT": {
-    "binance":  { "bid": 67200.50, "ask": 67201.00, "ts": 1714000000000 },
-    "coindcx":  { "bid": 67150.00, "ask": 67155.00, "ts": 1714000000000 },
-    "bitkub":   { "bid": 67480.00, "ask": 67490.00, "ts": 1714000000000 }
+    "binance":  { "bids": [...], "asks": [...], "ts": 1714000000000 },
+    "coindcx":  { "bids": [...], "asks": [...], "ts": 1714000000000 },
+    "bitkub":   { "bids": [...], "asks": [...], "ts": 1714000000000 }
   },
   "ETH/USDT": { ... },
   "BNB/USDT": { ... }
@@ -366,11 +383,18 @@ socket.on('prices', (prices) => {
 All configuration lives in `backend/src/config.js`:
 
 ```js
-// Trading fees per exchange (taker fee %)
+// Trading fees per exchange (maker and taker fee %)
 const FEES = {
-  binance:  0.10,   // 0.075% with BNB discount
-  coindcx:  0.20,
-  bitkub:   0.25,
+  binance: { maker: 0.1, taker: 0.1 },
+  coindcx: { maker: 0.2, taker: 0.2 },
+  bitkub:  { maker: 0.25, taker: 0.25 },
+};
+
+// Starting virtual balances per exchange
+const STARTING_BALANCES = {
+  binance: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
+  coindcx: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
+  bitkub:  { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 }
 };
 
 // Symbols to track
@@ -379,7 +403,7 @@ const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT'];
 // Minimum net profit % to flag as an opportunity
 const MIN_PROFIT_THRESHOLD = 0.05;
 
-// Capital used in P&L simulation (USDT)
+// Max capital used in P&L simulation (USDT)
 const SIMULATION_CAPITAL = 1000;
 ```
 
@@ -410,8 +434,10 @@ const SYMBOL_MAP = {
 function connectYourExchange(symbols, onUpdate) {
   // ... connect to WS or start polling
 
-  // On every price update:
-  updatePrice('yourexchange', 'BTC/USDT', bid, ask);
+  // On every price update format the order book bids and asks
+  const bids = [{ price: 67200, qty: 1 }]; // Array of depth levels
+  const asks = [{ price: 67201, qty: 1 }];
+  updatePrice('yourexchange', 'BTC/USDT', bids, asks);
   onUpdate('yourexchange', 'BTC/USDT');
 
   return {
@@ -458,8 +484,9 @@ az containerapp create \
 
 ## 🛣️ Roadmap
 
-- [ ] **Execution layer** — integrate exchange APIs to paper-trade with fake capital
-- [ ] **Historical replay** — record price data and replay to test strategies
+- [x] **Execution layer** — Paper-trade with localized capital constraints and fake latency
+- [x] **Trade logs** — Output completed/slipped trades to flat files
+- [ ] **Historical replay** — Replay engine directly from logged data
 - [ ] **Alert system** — Telegram/Discord webhook when opportunity exceeds threshold
 - [ ] **More exchanges** — WazirX, KuCoin, OKX
 - [ ] **Rust rewrite of core engine** — sub-millisecond detection latency

@@ -11,7 +11,7 @@ function connectBinance(symbols, onUpdate) {
   const streams = symbols
     .map(s => SYMBOL_MAP[s])
     .filter(Boolean)
-    .map(s => s + '@bookTicker')
+    .map(s => s + '@depth20@100ms')
     .join('/');
 
   const url = 'wss://stream.binance.com:9443/stream?streams=' + streams;
@@ -27,13 +27,18 @@ function connectBinance(symbols, onUpdate) {
       try {
         const msg = JSON.parse(raw);
         const data = msg.data || msg;
-        const symRaw = (data.s || '').toLowerCase();
+        let streamSym = '';
+        if (msg.stream) streamSym = msg.stream.split('@')[0];
+        const symRaw = streamSym || (data.s || '').toLowerCase();
+
         const symbol = Object.keys(SYMBOL_MAP).find(k => SYMBOL_MAP[k] === symRaw);
-        if (symbol && data.b && data.a) {
-          updatePrice('binance', symbol, data.b, data.a);
+        if (symbol && data.bids && data.asks) {
+          const bids = data.bids.map(b => ({ price: parseFloat(b[0]), qty: parseFloat(b[1]) }));
+          const asks = data.asks.map(a => ({ price: parseFloat(a[0]), qty: parseFloat(a[1]) }));
+          updatePrice('binance', symbol, bids, asks);
           onUpdate('binance', symbol);
         }
-      } catch (e) {}
+      } catch (e) { }
     });
 
     ws.on('close', () => {

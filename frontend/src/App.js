@@ -121,11 +121,15 @@ const CSS_VARS = `
    EXCHANGE CONFIG
 ═══════════════════════════════════════════════════════════════════════════ */
 const EXCHANGES = {
-  binance:  { color: 'var(--ex-binance)',  icon: '⬡', short: 'BNB' },
-  coindcx:  { color: 'var(--ex-coindcx)', icon: '◎', short: 'CDX' },
-  bitkub:   { color: 'var(--ex-bitkub)',  icon: '◆', short: 'BTK' },
+  binance: { color: 'var(--ex-binance)', icon: '⬡', short: 'BNB' },
+  coindcx: { color: 'var(--ex-coindcx)', icon: '◎', short: 'CDX' },
+  bitkub: { color: 'var(--ex-bitkub)', icon: '◆', short: 'BTK' },
 };
-const FEES = { binance: 0.1, coindcx: 0.2, bitkub: 0.25 };
+const FEES = {
+  binance: { maker: 0.1, taker: 0.1 },
+  coindcx: { maker: 0.2, taker: 0.2 },
+  bitkub: { maker: 0.25, taker: 0.25 }
+};
 const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT'];
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -332,7 +336,7 @@ function PriceTable({ prices, tickCount }) {
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color }}>{ex}</div>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-                TAKER {FEES[ex]}%
+                TAKER {FEES[ex].taker}%
               </div>
             </div>
           </div>
@@ -343,10 +347,16 @@ function PriceTable({ prices, tickCount }) {
       {SYMBOLS.map((sym, si) => {
         const data = prices[sym] || {};
         const asks = Object.keys(EXCHANGES)
-          .map(ex => ({ ex, ask: data[ex]?.ask }))
+          .map(ex => {
+            const askVal = data[ex]?.asks?.[0]?.price || data[ex]?.ask;
+            return { ex, ask: askVal };
+          })
           .filter(x => x.ask && x.ask > 0);
         const bids = Object.keys(EXCHANGES)
-          .map(ex => ({ ex, bid: data[ex]?.bid }))
+          .map(ex => {
+            const bidVal = data[ex]?.bids?.[0]?.price || data[ex]?.bid;
+            return { ex, bid: bidVal };
+          })
           .filter(x => x.bid && x.bid > 0);
         const minAsk = asks.length ? Math.min(...asks.map(x => x.ask)) : null;
         const maxBid = bids.length ? Math.max(...bids.map(x => x.bid)) : null;
@@ -371,8 +381,10 @@ function PriceTable({ prices, tickCount }) {
 
             {Object.keys(EXCHANGES).map(ex => {
               const d = data[ex];
-              const isBestBuy = d && minAsk && Math.abs(d.ask - minAsk) < 0.01;
-              const isBestSell = d && maxBid && Math.abs(d.bid - maxBid) < 0.01;
+              const dAsk = d?.asks?.[0]?.price || d?.ask;
+              const dBid = d?.bids?.[0]?.price || d?.bid;
+              const isBestBuy = dAsk && minAsk && Math.abs(dAsk - minAsk) < 0.01;
+              const isBestSell = dBid && maxBid && Math.abs(dBid - maxBid) < 0.01;
 
               return (
                 <div key={ex} style={{
@@ -388,7 +400,7 @@ function PriceTable({ prices, tickCount }) {
                       fontSize: 8, color: 'var(--green)', letterSpacing: '0.1em',
                     }}>▼ BEST BUY</div>
                   )}
-                  {d && d.ask > 0 ? (
+                  {dAsk && dAsk > 0 ? (
                     <>
                       <div style={{
                         fontSize: 14, fontWeight: 700,
@@ -396,16 +408,16 @@ function PriceTable({ prices, tickCount }) {
                         fontVariantNumeric: 'tabular-nums',
                         letterSpacing: '-0.02em',
                       }}>
-                        ${fmt(d.ask)}
+                        ${fmt(dAsk)}
                       </div>
                       <div style={{
                         display: 'flex', gap: 10, marginTop: 5, fontSize: 10,
                       }}>
                         <span style={{ color: 'var(--green-dim)' }}>
-                          B {fmt(d.bid)}
+                          B {fmt(dBid)}
                         </span>
                         <span style={{ color: 'var(--red-dim)' }}>
-                          A {fmt(d.ask)}
+                          A {fmt(dAsk)}
                         </span>
                       </div>
                     </>
@@ -511,7 +523,10 @@ function SpreadMatrix({ prices }) {
                       }}>—</div>
                     );
                     const bd = data[buyEx], sd = data[sellEx];
-                    if (!bd || !sd || !bd.ask || !sd.bid) return (
+                    const buyAsk = bd?.asks?.[0]?.price || bd?.ask;
+                    const sellBid = sd?.bids?.[0]?.price || sd?.bid;
+
+                    if (!buyAsk || !sellBid) return (
                       <div key={sellEx} style={{
                         background: 'var(--bg-raised)',
                         border: '1px solid var(--border-dim)',
@@ -519,8 +534,8 @@ function SpreadMatrix({ prices }) {
                         textAlign: 'center', fontSize: 9, color: 'var(--text-ghost)',
                       }}>…</div>
                     );
-                    const gross = ((sd.bid - bd.ask) / bd.ask) * 100;
-                    const net = gross - FEES[buyEx] - FEES[sellEx];
+                    const gross = ((sellBid - buyAsk) / buyAsk) * 100;
+                    const net = gross - FEES[buyEx].taker - FEES[sellEx].taker;
                     const isPos = net > 0;
                     return (
                       <div key={sellEx} style={{
@@ -584,6 +599,19 @@ function OppCard({ opp, isNew }) {
           marginBottom: 8,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+            {/* Status Badge */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'var(--bg-surface)',
+              border: `1px solid ${opp.status === 'EXECUTED' ? 'oklch(72% 0.20 155 / 0.4)' : opp.status === 'DETECTED' ? 'var(--amber-glow)' : 'oklch(62% 0.22 25 / 0.4)'}`,
+              borderRadius: 3, padding: '3px 6px',
+            }}>
+              <span style={{ fontSize: 9, color: opp.status === 'EXECUTED' ? 'var(--green)' : opp.status === 'DETECTED' ? 'var(--amber)' : 'var(--red)', fontWeight: 700 }}>
+                {opp.status}
+              </span>
+            </div>
+
             {/* Buy exchange */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 4,
@@ -638,8 +666,9 @@ function OppCard({ opp, isNew }) {
             fontSize: 18, fontWeight: 700,
             color: profitColor,
             letterSpacing: '-0.03em',
+            opacity: opp.status === 'FAILED_SLIPPAGE' || opp.status === 'FAILED_BALANCE' ? 0.4 : 1
           }}>
-            +{fmt(opp.netProfit, 3)}%
+            +{fmt(opp.finalSpread || opp.netProfit, 3)}%
           </div>
         </div>
 
@@ -662,9 +691,10 @@ function OppCard({ opp, isNew }) {
           border: '1px solid var(--border-dim)',
           borderRadius: 4, padding: '7px 12px',
           fontSize: 11,
+          opacity: opp.status === 'FAILED_SLIPPAGE' || opp.status === 'FAILED_BALANCE' ? 0.4 : 1
         }}>
           <span style={{ color: 'var(--text-ghost)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            $1k sim
+            ${fmt(opp.executedAmount || opp.pnl?.capital)} VOL
           </span>
           <span style={{ color: 'var(--text-dim)' }}>
             out <span style={{ color: 'var(--text-mid)' }}>${fmt(opp.pnl?.grossRevenue)}</span>
@@ -673,7 +703,7 @@ function OppCard({ opp, isNew }) {
             fees <span style={{ color: 'var(--red-dim)' }}>−${fmt(opp.pnl?.totalFees)}</span>
           </span>
           <span style={{ marginLeft: 'auto', fontWeight: 700, color: profitColor, fontSize: 13 }}>
-            {opp.pnl?.netProfit >= 0 ? '+' : ''}${fmt(opp.pnl?.netProfit)}
+            {opp.executedPnl >= 0 || opp.pnl?.netProfit >= 0 ? '+' : ''}${fmt(opp.executedPnl || opp.pnl?.netProfit)}
           </span>
         </div>
 
@@ -682,6 +712,7 @@ function OppCard({ opp, isNew }) {
           {age}
         </div>
       </div>
+
     </div>
   );
 }
@@ -898,7 +929,7 @@ function TickerBar({ latest }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    HEADER
 ═══════════════════════════════════════════════════════════════════════════ */
-function Header({ connected, prices, tickCount }) {
+function Header({ connected, prices, tickCount, runBacktest }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -941,6 +972,27 @@ function Header({ connected, prices, tickCount }) {
             ARBITRAGE DETECTION ENGINE
           </div>
         </div>
+
+        <button
+          onClick={runBacktest}
+          style={{
+            marginLeft: 24,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--amber-glow)',
+            color: 'var(--amber)',
+            padding: '6px 12px',
+            borderRadius: 4,
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            boxShadow: '0 0 10px rgba(245,158,11,0.2)'
+          }}
+        >
+          Run Backtest
+        </button>
       </div>
 
       {/* Exchange status */}
@@ -950,7 +1002,7 @@ function Header({ connected, prices, tickCount }) {
         zIndex: 1,
       }}>
         {Object.entries(EXCHANGES).map(([ex, { color, icon }]) => {
-          const hasData = Object.values(prices).some(p => p[ex] && p[ex].ask > 0);
+          const hasData = Object.values(prices).some(p => p[ex] && (p[ex].ask > 0 || (p[ex].asks && p[ex].asks[0]?.price > 0)));
           return (
             <div key={ex} style={{
               padding: '0 20px',
@@ -1014,10 +1066,30 @@ function Header({ connected, prices, tickCount }) {
 export default function App() {
   const [connected, setConnected] = useState(false);
   const [prices, setPrices] = useState({});
+  const [balances, setBalances] = useState({});
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState({ totalOpportunities: 0, totalSimulatedProfit: 0, bestOpportunity: null });
   const [latestOpp, setLatestOpp] = useState(null);
   const [tickCount, setTickCount] = useState(0);
+
+  const [backtestReport, setBacktestReport] = useState(null);
+  const [showBacktestModal, setShowBacktestModal] = useState(false);
+
+  const runBacktest = async () => {
+    try {
+      const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4001';
+      const res = await fetch(`${BACKEND}/api/backtest`);
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      setBacktestReport(data);
+      setShowBacktestModal(true);
+    } catch (e) {
+      alert('Failed to run backtest');
+    }
+  };
 
   useEffect(() => {
     const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
@@ -1029,8 +1101,9 @@ export default function App() {
       setPrices(data);
       setTickCount(c => c + 1);
     });
+    socket.on('balances', (data) => setBalances(data));
     socket.on('opportunity', (opp) => {
-      setHistory(prev => [opp, ...prev].slice(0, 100));
+      setHistory(prev => [opp, ...prev].filter((o, i, a) => a.findIndex(t => t.id === o.id) === i).slice(0, 100));
       setLatestOpp(opp);
     });
     socket.on('history', (h) => setHistory(h));
@@ -1047,7 +1120,7 @@ export default function App() {
       <style>{CSS_VARS}</style>
       <div style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
 
-        <Header connected={connected} prices={prices} tickCount={tickCount} />
+        <Header connected={connected} prices={prices} tickCount={tickCount} runBacktest={runBacktest} />
         <TickerBar latest={latestOpp} />
 
         <main style={{ maxWidth: 1440, margin: '0 auto', padding: '20px 20px 32px' }}>
@@ -1085,7 +1158,36 @@ export default function App() {
           {/* Main 2-col layout */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <PriceTable prices={prices} tickCount={tickCount} />
-            <SpreadMatrix prices={prices} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <SpreadMatrix prices={prices} />
+
+              {/* Virtual Balances */}
+              <div style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-dim)',
+                borderRadius: 6, padding: '12px 16px', flex: 1
+              }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)', borderBottom: '1px solid var(--border-dim)', paddingBottom: 8, marginBottom: 8 }}>
+                  Virtual Balances (Live Sync)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {Object.entries(balances).map(([ex, assets]) => (
+                    <div key={ex}>
+                      <div style={{ fontSize: 10, color: EXCHANGES[ex]?.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+                        {ex}
+                      </div>
+                      {Object.entries(assets).map(([coin, amount]) => (
+                        <div key={coin} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                          <span style={{ color: 'var(--text-dim)' }}>{coin}</span>
+                          <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(amount, coin === 'USDT' ? 0 : 3)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Bottom 2-col */}
@@ -1109,7 +1211,7 @@ export default function App() {
                       <div>
                         <div style={{ fontSize: 11, color, fontWeight: 600 }}>{ex}</div>
                         <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-                          Taker: <span style={{ color: 'var(--text-primary)' }}>{FEES[ex]}%</span>
+                          Maker: <span style={{ color: 'var(--text-primary)' }}>{FEES[ex].maker}%</span> · Taker: <span style={{ color: 'var(--text-primary)' }}>{FEES[ex].taker}%</span>
                         </div>
                       </div>
                     </div>
@@ -1123,6 +1225,90 @@ export default function App() {
 
         </main>
       </div>
+      {/* Backtest Modal Overlay */}
+      {showBacktestModal && backtestReport && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-panel)', width: 600, maxWidth: '90%',
+            borderRadius: 8, border: '1px solid var(--border-mid)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+            display: 'flex', flexDirection: 'column',
+            maxHeight: '80vh'
+          }}>
+            <div style={{
+              padding: '16px 24px', borderBottom: '1px solid var(--border-dim)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <h2 style={{ m: 0, fontSize: 16, color: 'var(--text-primary)' }}>Historical Backtest Report</h2>
+              <button
+                onClick={() => setShowBacktestModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}
+              >×</button>
+            </div>
+
+            <div style={{ padding: 24, overflowY: 'auto' }}>
+              {/* Overview */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>TOTAL OPPS</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold' }}>{backtestReport.overview.totalTrades}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--green-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--green)', marginBottom: 4 }}>EXECUTED</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--green)' }}>{backtestReport.overview.executed}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--amber-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--amber)', marginBottom: 4 }}>SLIPPED</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--amber)' }}>{backtestReport.overview.failedSlippage}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--red-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: 4 }}>LOW BAL</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--red)' }}>{backtestReport.overview.failedBalance}</div>
+                </div>
+              </div>
+
+              {/* Financials */}
+              <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 12 }}>Financials</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>TRADED VOLUME</div>
+                  <div style={{ fontSize: 16 }}>${fmt(backtestReport.financials.totalVolume)}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>NET PROFIT</div>
+                  <div style={{ fontSize: 16, color: 'var(--green)' }}>${fmt(backtestReport.financials.totalNetProfit)}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>NET ROI</div>
+                  <div style={{ fontSize: 16, color: 'var(--green)' }}>{fmt(backtestReport.financials.roi, 2)}%</div>
+                </div>
+              </div>
+
+              {/* Routes */}
+              <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 12 }}>Top Routes</h3>
+              <div style={{ background: 'var(--bg-surface)', borderRadius: 6, border: '1px solid var(--border-dim)', overflow: 'hidden' }}>
+                {backtestReport.topRoutes.map((r, i) => (
+                  <div key={r.route} style={{
+                    display: 'flex', justifyContent: 'space-between', padding: '8px 12px',
+                    borderBottom: i < backtestReport.topRoutes.length - 1 ? '1px solid var(--border-dim)' : 'none'
+                  }}>
+                    <span>{r.route}</span>
+                    <div style={{ display: 'flex', gap: 24 }}>
+                      <span style={{ color: 'var(--text-dim)' }}>{r.count} trades</span>
+                      <span style={{ color: 'var(--green)', width: 60, textAlign: 'right' }}>${fmt(r.profit)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

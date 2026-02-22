@@ -4,11 +4,11 @@
  */
 const store = {};
 
-function updatePrice(exchange, symbol, bid, ask) {
+function updatePrice(exchange, symbol, bids, asks) {
   if (!store[symbol]) store[symbol] = {};
   store[symbol][exchange] = {
-    bid: parseFloat(bid),
-    ask: parseFloat(ask),
+    bids, // Array of { price: number, qty: number }
+    asks, // Array of { price: number, qty: number }
     ts: Date.now()
   };
 }
