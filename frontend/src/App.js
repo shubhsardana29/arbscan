@@ -1183,17 +1183,18 @@ export default function App() {
 
   const runBacktest = async () => {
     try {
-      const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4001';
+      const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
       const res = await fetch(`${BACKEND}/api/backtest`);
       const data = await res.json();
-      if (data.error) {
-        alert(data.error);
+      if (!data || data.error) {
+        alert(data.error || 'No backtest data available. Run the simulator for a few minutes first.');
         return;
       }
       setBacktestReport(data);
       setShowBacktestModal(true);
     } catch (e) {
-      alert('Failed to run backtest');
+      console.error('Backtest error:', e);
+      alert('Failed to run backtest. Ensure backend is running.');
     }
   };
 
