@@ -4,6 +4,7 @@
  */
 const axios = require('axios');
 const { updatePrice } = require('../priceStore');
+const { getRate } = require('../fxStore');
 
 const SYMBOL_MAP = {
   'BTC/USDT': 'BTCUSDT',
@@ -26,8 +27,10 @@ function connectCoinDCX(symbols, onUpdate) {
         const key = SYMBOL_MAP[symbol];
         const ticker = tickers.find(t => t.market === key);
         if (ticker) {
-          const bid = parseFloat(ticker.bid || ticker.last_price);
-          const ask = parseFloat(ticker.ask || ticker.last_price);
+          // CoinDCX prices are in INR — convert to USD via live fxStore rate
+          const INR_TO_USD = getRate('INR');
+          const bid = parseFloat(ticker.bid || ticker.last_price) * INR_TO_USD;
+          const ask = parseFloat(ticker.ask || ticker.last_price) * INR_TO_USD;
           if (!isNaN(bid) && !isNaN(ask) && bid > 0 && ask > 0) {
             // Mocking depth since public API only gives top of book
             const bids = [{ price: bid, qty: 999999 }];

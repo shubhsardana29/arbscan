@@ -9,6 +9,10 @@ if (!fs.existsSync(logDir)) {
 const tradeLogPath = path.join(logDir, 'trades.jsonl');
 
 function logTrade(opp) {
+    // FAILED_BALANCE is high-frequency noise when virtual wallets are depleted.
+    // Skip it — only log meaningful outcomes for backtest analytics.
+    if (opp.status === 'FAILED_BALANCE') return;
+
     const logLine = JSON.stringify({
         timestamp: new Date().toISOString(),
         id: opp.id,

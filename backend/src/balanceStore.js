@@ -3,6 +3,18 @@ const { STARTING_BALANCES } = require('./config');
 // In-memory balance store initialized with starter config
 const balances = JSON.parse(JSON.stringify(STARTING_BALANCES));
 
+// Auto-reset balances every 5 minutes to prevent permanent depletion
+const RESET_INTERVAL_MS = 5 * 60 * 1000;
+setInterval(() => {
+    const fresh = JSON.parse(JSON.stringify(STARTING_BALANCES));
+    Object.keys(fresh).forEach(exchange => {
+        Object.keys(fresh[exchange]).forEach(asset => {
+            balances[exchange][asset] = fresh[exchange][asset];
+        });
+    });
+    console.log('[Balances] Auto-reset to starting values');
+}, RESET_INTERVAL_MS);
+
 function getBalance(exchange, asset) {
     if (!balances[exchange]) return 0;
     return balances[exchange][asset] || 0;

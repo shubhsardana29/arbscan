@@ -11,6 +11,7 @@ const { getAllPrices } = require('./priceStore');
 const { getAllBalances } = require('./balanceStore');
 const { logTrade } = require('./tradeLogger');
 const { runBacktest } = require('../scripts/backtest');
+const { startFxStore, getRates, fxEvents } = require('./fxStore');
 const { SYMBOLS } = require('./config');
 
 const app = express();
@@ -45,6 +46,11 @@ app.get('/api/backtest', async (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// REST: get live FX rates
+app.get('/api/fx-rates', (req, res) => {
+  res.json(getRates());
 });
 
 // Stats tracking
@@ -114,8 +120,17 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start exchange connectors
+// Start FX rate store — broadcast updates over socket
 console.log('[Server] Starting exchange connectors...');
+startFxStore();
+fxEvents.on('update', (rates) => io.emit('fx-rates', rates));
+
+// Send current FX rates on new socket connections
+const _ioOnConn = io.on.bind(io, 'connection');
+io.on('connection', (socket) => {
+  socket.emit('fx-rates', getRates());
+});
+
 connectBinance(SYMBOLS, onPriceUpdate);
 connectCoinDCX(SYMBOLS, onPriceUpdate);
 connectBitkub(SYMBOLS, onPriceUpdate);

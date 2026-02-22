@@ -929,7 +929,7 @@ function TickerBar({ latest }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    HEADER
 ═══════════════════════════════════════════════════════════════════════════ */
-function Header({ connected, prices, tickCount, runBacktest }) {
+function Header({ connected, prices, tickCount, runBacktest, fxRates }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -1033,8 +1033,43 @@ function Header({ connected, prices, tickCount, runBacktest }) {
 
       {/* Right: time + connection */}
       <div style={{
-        marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 20, zIndex: 1,
+        marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, zIndex: 1,
       }}>
+
+        {/* Live FX Rates Badge */}
+        {fxRates && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '4px 10px',
+            border: '1px solid var(--border-dim)',
+            borderRadius: 4,
+            background: 'var(--bg-surface)',
+          }}>
+            <div style={{ fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.12em' }}>FX LIVE</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 9, color: 'var(--amber)', fontWeight: 700 }}>THB</span>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
+                ${(fxRates.THB || 0).toFixed(4)}
+              </span>
+            </div>
+            <div style={{ width: 1, height: 10, background: 'var(--border-dim)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 9, color: 'oklch(72% 0.15 240)', fontWeight: 700 }}>INR</span>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
+                ${(fxRates.INR || 0).toFixed(5)}
+              </span>
+            </div>
+            {fxRates.source === 'live' && (
+              <span style={{
+                display: 'inline-block', width: 4, height: 4, borderRadius: '50%',
+                background: 'var(--green)',
+                boxShadow: '0 0 5px var(--green)',
+                animation: 'pulse-dot 2s infinite',
+              }} />
+            )}
+          </div>
+        )}
+
         <div style={{ fontSize: 11, color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
           {now.toUTCString().split(' ').slice(4, 5).join(' ')} UTC
         </div>
@@ -1074,6 +1109,7 @@ export default function App() {
 
   const [backtestReport, setBacktestReport] = useState(null);
   const [showBacktestModal, setShowBacktestModal] = useState(false);
+  const [fxRates, setFxRates] = useState(null);
 
   const runBacktest = async () => {
     try {
@@ -1108,6 +1144,7 @@ export default function App() {
     });
     socket.on('history', (h) => setHistory(h));
     socket.on('stats', (s) => setStats(s));
+    socket.on('fx-rates', (r) => setFxRates(r));
 
     return () => socket.disconnect();
   }, []);
@@ -1120,7 +1157,7 @@ export default function App() {
       <style>{CSS_VARS}</style>
       <div style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
 
-        <Header connected={connected} prices={prices} tickCount={tickCount} runBacktest={runBacktest} />
+        <Header connected={connected} prices={prices} tickCount={tickCount} runBacktest={runBacktest} fxRates={fxRates} />
         <TickerBar latest={latestOpp} />
 
         <main style={{ maxWidth: 1440, margin: '0 auto', padding: '20px 20px 32px' }}>

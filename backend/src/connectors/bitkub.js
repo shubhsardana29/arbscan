@@ -2,8 +2,8 @@
  * Bitkub WebSocket Stream
  */
 const WebSocket = require('ws');
-const axios = require('axios');
 const { updatePrice } = require('../priceStore');
+const { getRate } = require('../fxStore');
 
 const SYMBOL_MAP = {
   'BTC/USDT': 'THB_BTC',
@@ -11,24 +11,13 @@ const SYMBOL_MAP = {
   'BNB/USDT': 'THB_BNB'
 };
 
-let THB_TO_USD = 0.028;
-
-async function updateFxRate() {
-  try {
-    const res = await axios.get('https://api.exchangerate-api.com/v4/latest/THB', { timeout: 5000 });
-    THB_TO_USD = res.data.rates.USD || THB_TO_USD;
-  } catch (e) { }
-}
-
 function connectBitkub(symbols, onUpdate) {
   let ws;
   let reconnectTimeout;
 
-  updateFxRate();
-  const fxInterval = setInterval(updateFxRate, 5 * 60 * 1000);
-
   const streams = symbols.map(s => `market.ticker.${SYMBOL_MAP[s].toLowerCase()}`).join(',');
   const url = `wss://api.bitkub.com/websocket-api/${streams}`;
+
 
   function connect() {
     ws = new WebSocket(url);
@@ -43,6 +32,7 @@ function connectBitkub(symbols, onUpdate) {
           const symbol = Object.keys(SYMBOL_MAP).find(k => SYMBOL_MAP[k] === symRaw);
 
           if (symbol && msg.highestBid && msg.lowestAsk) {
+            const THB_TO_USD = getRate('THB'); // live rate from central fxStore
             const bid = parseFloat(msg.highestBid) * THB_TO_USD;
             const ask = parseFloat(msg.lowestAsk) * THB_TO_USD;
 
@@ -71,7 +61,6 @@ function connectBitkub(symbols, onUpdate) {
   connect();
   return {
     close: () => {
-      clearInterval(fxInterval);
       clearTimeout(reconnectTimeout);
       ws && ws.terminate();
     }
