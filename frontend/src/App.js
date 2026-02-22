@@ -804,16 +804,16 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function ProfitChart({ history }) {
-  const chartData = history.slice().reverse().reduce((acc, opp, i) => {
+function ProfitChart({ trades }) {
+  const chartData = (trades || []).reduce((acc, trade, i) => {
     const prev = acc[i - 1]?.cum || 0;
-    acc.push({ t: i + 1, cum: parseFloat((prev + (opp.pnl?.netProfit || 0)).toFixed(4)) });
+    acc.push({ t: i + 1, cum: parseFloat((prev + (trade.executedPnl || 0)).toFixed(4)) });
     return acc;
   }, []);
 
   const maxVal = chartData.length ? Math.max(...chartData.map(d => d.cum)) : 0;
   const minVal = chartData.length ? Math.min(...chartData.map(d => d.cum)) : 0;
-  const isProfit = maxVal >= 0;
+  const isProfit = (chartData[chartData.length - 1]?.cum || 0) >= 0;
 
   return (
     <div style={{
@@ -844,7 +844,7 @@ function ProfitChart({ history }) {
           height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'var(--text-ghost)', fontSize: 11,
         }}>
-          Chart populates after first opportunities
+          Chart populates after first executions
         </div>
       ) : (
         <div style={{ padding: '12px 8px 8px 0' }}>
@@ -873,6 +873,67 @@ function ProfitChart({ history }) {
           </ResponsiveContainer>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROUTE STATS HEATMAP
+═══════════════════════════════════════════════════════════════════════════ */
+function RouteStatsHeatmap({ routeStats }) {
+  const statsArr = Object.entries(routeStats || {}).map(([key, data]) => ({ key, ...data }));
+
+  return (
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border-dim)',
+      borderRadius: 6, overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '12px 16px', borderBottom: '1px solid var(--border-dim)',
+        background: 'var(--bg-raised)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+          Route Performance Heatmap
+        </div>
+      </div>
+      <div style={{ padding: 12 }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 40px 60px 80px',
+          gap: 8, fontSize: 9, color: 'var(--text-ghost)', textTransform: 'uppercase',
+          marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid var(--border-dim)'
+        }}>
+          <span>Route</span>
+          <span style={{ textAlign: 'right' }}>Exec</span>
+          <span style={{ textAlign: 'right' }}>Avg %</span>
+          <span style={{ textAlign: 'right' }}>PnL</span>
+        </div>
+        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          {statsArr.length === 0 ? (
+            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-ghost)', py: 20 }}>
+              Waiting for executions...
+            </div>
+          ) : (
+            statsArr.sort((a, b) => b.totalPnl - a.totalPnl).map(s => (
+              <div key={s.key} style={{
+                display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 40px 60px 80px',
+                gap: 8, fontSize: 10, marginBottom: 6, alignItems: 'center'
+              }}>
+                <span style={{ color: 'var(--text-mid)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.key}</span>
+                <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{s.count}</span>
+                <span style={{ color: 'var(--amber)', textAlign: 'right' }}>{fmt(s.totalSpread / s.count, 2)}%</span>
+                <span style={{
+                  color: s.totalPnl >= 0 ? 'var(--green)' : 'var(--red)',
+                  fontWeight: 700, textAlign: 'right'
+                }}>
+                  ${fmt(s.totalPnl)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1107,6 +1168,9 @@ export default function App() {
   const [latestOpp, setLatestOpp] = useState(null);
   const [tickCount, setTickCount] = useState(0);
 
+  const [routeStats, setRouteStats] = useState({});
+  const [tradeHistory, setTradeHistory] = useState([]); // for chart
+
   const [backtestReport, setBacktestReport] = useState(null);
   const [showBacktestModal, setShowBacktestModal] = useState(false);
   const [fxRates, setFxRates] = useState(null);
@@ -1141,10 +1205,17 @@ export default function App() {
     socket.on('opportunity', (opp) => {
       setHistory(prev => [opp, ...prev].filter((o, i, a) => a.findIndex(t => t.id === o.id) === i).slice(0, 100));
       setLatestOpp(opp);
+      if (opp.status === 'EXECUTED') {
+        setTradeHistory(prev => [...prev, opp]);
+      }
     });
     socket.on('history', (h) => setHistory(h));
     socket.on('stats', (s) => setStats(s));
     socket.on('fx-rates', (r) => setFxRates(r));
+    socket.on('route-stats', (rs) => setRouteStats(rs));
+
+    // Initial trades fetch for chart
+    fetch(`${BACKEND}/api/trades`).then(res => res.json()).then(data => setTradeHistory(data));
 
     return () => socket.disconnect();
   }, []);
@@ -1193,11 +1264,12 @@ export default function App() {
           </div>
 
           {/* Main 2-col layout */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 12, marginBottom: 12 }}>
             <PriceTable prices={prices} tickCount={tickCount} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <SpreadMatrix prices={prices} />
+              <RouteStatsHeatmap routeStats={routeStats} />
 
               {/* Virtual Balances */}
               <div style={{
@@ -1228,9 +1300,9 @@ export default function App() {
           </div>
 
           {/* Bottom 2-col */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <ProfitChart history={history} />
+              <ProfitChart trades={tradeHistory} />
 
               {/* Fee reference card */}
               <div style={{

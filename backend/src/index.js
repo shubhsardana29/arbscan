@@ -2,6 +2,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const { connectBinance } = require('./connectors/binance');
 const { connectCoinDCX } = require('./connectors/coindcx');
@@ -53,6 +55,27 @@ app.get('/api/fx-rates', (req, res) => {
   res.json(getRates());
 });
 
+// REST: return EXECUTED trades from trades.jsonl for P&L chart
+app.get('/api/trades', (req, res) => {
+  const logPath = path.join(__dirname, '../data/trades.jsonl');
+  if (!fs.existsSync(logPath)) return res.json([]);
+  try {
+    const lines = fs.readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(t => t && t.status === 'EXECUTED');
+    res.json(lines);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// REST: live route stats
+app.get('/api/route-stats', (req, res) => {
+  res.json(Object.fromEntries(routeStats));
+});
+
 // Stats tracking
 const stats = {
   totalOpportunities: 0,
@@ -60,6 +83,10 @@ const stats = {
   bestOpportunity: null,
   opportunityHistory: [] // last 100
 };
+
+// Route stats: routeKey -> { count, totalSpread, bestSpread, totalPnl, lastSeen }
+// e.g. 'coindcx->bitkub:BTC/USDT'
+const routeStats = new Map();
 
 // Called every time any exchange updates a price
 // Handle execution events
@@ -76,6 +103,16 @@ engineEvents.on('trade_executed', (opp) => {
     stats.opportunityHistory.pop();
   }
 
+  // Update per-route stats
+  const routeKey = `${opp.buyOn}->${opp.sellOn}:${opp.symbol}`;
+  const rs = routeStats.get(routeKey) || { count: 0, totalSpread: 0, bestSpread: 0, totalPnl: 0, lastSeen: null };
+  rs.count++;
+  rs.totalSpread += opp.netProfit || 0;
+  rs.bestSpread = Math.max(rs.bestSpread, opp.netProfit || 0);
+  rs.totalPnl += opp.executedPnl || 0;
+  rs.lastSeen = new Date().toISOString();
+  routeStats.set(routeKey, rs);
+
   io.emit('opportunity', opp);
   io.emit('balances', getAllBalances());
   io.emit('stats', {
@@ -83,6 +120,7 @@ engineEvents.on('trade_executed', (opp) => {
     totalSimulatedProfit: parseFloat(stats.totalSimulatedProfit.toFixed(4)),
     bestOpportunity: stats.bestOpportunity
   });
+  io.emit('route-stats', Object.fromEntries(routeStats));
 
   logTrade(opp);
 });
@@ -114,6 +152,7 @@ io.on('connection', (socket) => {
     bestOpportunity: stats.bestOpportunity
   });
   socket.emit('history', stats.opportunityHistory);
+  socket.emit('route-stats', Object.fromEntries(routeStats));
 
   socket.on('disconnect', () => {
     console.log('[Socket.io] Client disconnected:', socket.id);
