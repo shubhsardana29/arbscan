@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const { updatePrice } = require('../priceStore');
 
 const SYMBOL_MAP = {
-    'BTC/USDT': 'BTC/USDT',
+    'BTC/USDT': 'XBT/USDT',
     'ETH/USDT': 'ETH/USDT',
     'BNB/USDT': 'BNB/USDT'
 };
@@ -21,28 +21,36 @@ function connectKraken(symbols, onUpdate) {
 
     ws.on('message', (data) => {
         const msg = JSON.parse(data);
-        if (msg.event) return; // heartbeats, systemStatus, subscriptionStatus
 
-        if (Array.isArray(msg) && msg[msg.length - 1] === 'book-10') {
-            const krakenSymbol = msg[msg.length - 2];
+        // Handle system events
+        if (msg.event === 'subscriptionStatus') {
+            if (msg.status === 'subscribed') {
+                console.log(`[Kraken] Subscribed to ${msg.pair}`);
+            } else if (msg.status === 'error') {
+                console.error(`[Kraken] Subscription error for ${msg.pair}:`, msg.errorMessage);
+            }
+            return;
+        }
+        if (msg.event) return;
+
+        // Handle data messages: [channelID, payload, (payload?), channelName, pair]
+        if (Array.isArray(msg) && msg.length >= 4) {
+            const krakenSymbol = msg[msg.length - 1]; // Pair is the last element
             const normalizedSymbol = Object.keys(SYMBOL_MAP).find(k => SYMBOL_MAP[k] === krakenSymbol);
             if (!normalizedSymbol) return;
 
-            const payload = msg[1];
-            if (payload.b || payload.a) {
-                // Kraken sends snapshots followed by diffs.
-                // For simplicity in this L2 connector, we treat b/a as top of book levels if sent
-                const bids = payload.b ? payload.b.map(b => ({ price: parseFloat(b[0]), qty: parseFloat(b[1]) })) : null;
-                const asks = payload.a ? payload.a.map(a => ({ price: parseFloat(a[0]), qty: parseFloat(a[1]) })) : null;
+            let bids = null, asks = null;
 
-                if (bids || asks) {
-                    updatePrice('kraken', normalizedSymbol, bids, asks);
-                    onUpdate('kraken', normalizedSymbol);
-                }
-            } else if (payload.as || payload.bs) {
-                // Snapshot
-                const bids = payload.bs.map(b => ({ price: parseFloat(b[0]), qty: parseFloat(b[1]) }));
-                const asks = payload.as.map(a => ({ price: parseFloat(a[0]), qty: parseFloat(a[1]) }));
+            // Kraken can send 1 or 2 payload objects in updates
+            for (let i = 1; i < msg.length - 2; i++) {
+                const payload = msg[i];
+                if (payload.as) asks = payload.as.map(a => ({ price: parseFloat(a[0]), qty: parseFloat(a[1]) }));
+                if (payload.bs) bids = payload.bs.map(b => ({ price: parseFloat(b[0]), qty: parseFloat(b[1]) }));
+                if (payload.a) asks = payload.a.map(a => ({ price: parseFloat(a[0]), qty: parseFloat(a[1]) }));
+                if (payload.b) bids = payload.b.map(b => ({ price: parseFloat(b[0]), qty: parseFloat(b[1]) }));
+            }
+
+            if (bids || asks) {
                 updatePrice('kraken', normalizedSymbol, bids, asks);
                 onUpdate('kraken', normalizedSymbol);
             }
