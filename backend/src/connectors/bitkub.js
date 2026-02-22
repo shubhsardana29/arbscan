@@ -15,30 +15,35 @@ function connectBitkub(symbols, onUpdate) {
   let ws;
   let reconnectTimeout;
 
-  const streams = symbols.map(s => `market.ticker.${SYMBOL_MAP[s].toLowerCase()}`).join(',');
+  const streams = symbols.map(s => `market.books.${SYMBOL_MAP[s].toLowerCase()}`).join(',');
   const url = `wss://api.bitkub.com/websocket-api/${streams}`;
 
 
   function connect() {
     ws = new WebSocket(url);
 
-    ws.on('open', () => console.log('[Bitkub] Connected'));
+    ws.on('open', () => console.log('[Bitkub] Connected to Books stream'));
 
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw);
-        if (msg.stream && msg.stream.startsWith('market.ticker.')) {
-          const symRaw = msg.stream.replace('market.ticker.', '').toUpperCase();
+        if (msg.stream && msg.stream.startsWith('market.books.')) {
+          const symRaw = msg.stream.replace('market.books.', '').toUpperCase();
           const symbol = Object.keys(SYMBOL_MAP).find(k => SYMBOL_MAP[k] === symRaw);
 
-          if (symbol && msg.highestBid && msg.lowestAsk) {
-            const THB_TO_USD = getRate('THB'); // live rate from central fxStore
-            const bid = parseFloat(msg.highestBid) * THB_TO_USD;
-            const ask = parseFloat(msg.lowestAsk) * THB_TO_USD;
+          if (symbol && msg.bids && msg.asks) {
+            const THB_TO_USD = getRate('THB');
 
-            if (!isNaN(bid) && !isNaN(ask) && bid > 0 && ask > 0) {
-              const bids = [{ price: bid, qty: 999999 }];
-              const asks = [{ price: ask, qty: 999999 }];
+            const bids = msg.bids.map(b => ({
+              price: parseFloat(b[0]) * THB_TO_USD,
+              qty: parseFloat(b[1])
+            }));
+            const asks = msg.asks.map(a => ({
+              price: parseFloat(a[0]) * THB_TO_USD,
+              qty: parseFloat(a[1])
+            }));
+
+            if (bids.length > 0 || asks.length > 0) {
               updatePrice('bitkub', symbol, bids, asks);
               onUpdate('bitkub', symbol);
             }
