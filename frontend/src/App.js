@@ -325,7 +325,7 @@ function PriceTable({ prices, tickCount }) {
     }}>
       {/* Header */}
       <div style={{
-        display: 'grid', gridTemplateColumns: '80px repeat(3, 1fr)',
+        display: 'grid', gridTemplateColumns: `80px repeat(${Object.keys(EXCHANGES).length}, 1fr)`,
         borderBottom: '1px solid var(--border-dim)',
         background: 'var(--bg-raised)',
       }}>
@@ -369,7 +369,7 @@ function PriceTable({ prices, tickCount }) {
 
         return (
           <div key={sym} style={{
-            display: 'grid', gridTemplateColumns: '80px repeat(3, 1fr)',
+            display: 'grid', gridTemplateColumns: `80px repeat(${Object.keys(EXCHANGES).length}, 1fr)`,
             borderBottom: si < SYMBOLS.length - 1 ? '1px solid var(--border-dim)' : 'none',
           }}>
             {/* Symbol */}
@@ -491,7 +491,7 @@ function SpreadMatrix({ prices }) {
 
               {/* Column headers */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '56px repeat(3, 1fr)',
+                display: 'grid', gridTemplateColumns: `56px repeat(${exList.length}, 1fr)`,
                 gap: 3, marginBottom: 3,
               }}>
                 <div />
@@ -508,7 +508,7 @@ function SpreadMatrix({ prices }) {
               {/* Matrix rows */}
               {exList.map(buyEx => (
                 <div key={buyEx} style={{
-                  display: 'grid', gridTemplateColumns: '56px repeat(3, 1fr)',
+                  display: 'grid', gridTemplateColumns: `56px repeat(${exList.length}, 1fr)`,
                   gap: 3, marginBottom: 3,
                 }}>
                   <div style={{
@@ -1286,7 +1286,7 @@ export default function App() {
                 <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)', borderBottom: '1px solid var(--border-dim)', paddingBottom: 8, marginBottom: 8 }}>
                   Virtual Balances (Live Sync)
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Object.keys(EXCHANGES).length}, 1fr)`, gap: 12 }}>
                   {Object.entries(balances).map(([ex, assets]) => (
                     <div key={ex}>
                       <div style={{ fontSize: 10, color: EXCHANGES[ex]?.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
@@ -1319,7 +1319,7 @@ export default function App() {
                 <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 10 }}>
                   Fee Schedule
                 </div>
-                <div style={{ display: 'flex', gap: 24 }}>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                   {Object.entries(EXCHANGES).map(([ex, { color, icon }]) => (
                     <div key={ex} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, color }}>{icon}</span>
