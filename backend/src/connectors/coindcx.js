@@ -1,10 +1,13 @@
 /**
  * CoinDCX — uses REST polling since their public WS requires legacy Socket.io v2
  * Polls /exchange/ticker every 2 seconds
+ *
+ * NOTE: BTCUSDT, ETHUSDT, BNBUSDT on CoinDCX are USDT-denominated.
+ * Prices come back in USD-equivalent — NO INR conversion required.
+ * Only apply INR conversion if using INR pairs like B-BTC_INR.
  */
 const axios = require('axios');
 const { updatePrice } = require('../priceStore');
-const { getRate } = require('../fxStore');
 
 const SYMBOL_MAP = {
   'BTC/USDT': 'BTCUSDT',
@@ -27,10 +30,9 @@ function connectCoinDCX(symbols, onUpdate) {
         const key = SYMBOL_MAP[symbol];
         const ticker = tickers.find(t => t.market === key);
         if (ticker) {
-          // CoinDCX prices are in INR — convert to USD via live fxStore rate
-          const INR_TO_USD = getRate('INR');
-          const bid = parseFloat(ticker.bid || ticker.last_price) * INR_TO_USD;
-          const ask = parseFloat(ticker.ask || ticker.last_price) * INR_TO_USD;
+          // USDT pairs: prices are already in USD — no conversion needed
+          const bid = parseFloat(ticker.bid || ticker.last_price);
+          const ask = parseFloat(ticker.ask || ticker.last_price);
           if (!isNaN(bid) && !isNaN(ask) && bid > 0 && ask > 0) {
             // Mocking depth since public API only gives top of book
             const bids = [{ price: bid, qty: 999999 }];
