@@ -1,10 +1,14 @@
-const { FEES, MIN_PROFIT_THRESHOLD, SIMULATION_CAPITAL } = require('./config');
+const { FEES, MIN_PROFIT_THRESHOLD, SIMULATION_CAPITAL, ROUTE_COOLDOWN_MS } = require('./config');
 const { getBalance, checkSufficientBalance, debitBalance, creditBalance } = require('./balanceStore');
 const EventEmitter = require('events');
 
 const engineEvents = new EventEmitter();
 const pendingQueue = [];
 const EXECUTION_LATENCY_MS = 100;
+
+// Per-route cooldown map: routeKey → timestamp of last queue insertion
+// Prevents re-firing the same buyEx→sellEx+symbol for ROUTE_COOLDOWN_MS after it triggers.
+const routeCooldowns = new Map();
 
 setInterval(() => {
   const now = Date.now();
@@ -245,9 +249,18 @@ function detectArbitrage(symbol) {
         };
 
         opportunities.push(opp);
-        // Only push to execution queue if we haven't just queued the identical arb
+
+        // Per-route cooldown: block same buyEx→sellEx+symbol for ROUTE_COOLDOWN_MS after firing
+        const routeKey = `${buyEx}->${sellEx}:${symbol}`;
+        const lastFired = routeCooldowns.get(routeKey) || 0;
+        const isOnCooldown = (Date.now() - lastFired) < ROUTE_COOLDOWN_MS;
         const isQueued = pendingQueue.some(q => q.buyOn === buyEx && q.sellOn === sellEx && q.symbol === symbol);
-        if (!isQueued) pendingQueue.push(opp);
+
+        if (!isQueued && !isOnCooldown) {
+          routeCooldowns.set(routeKey, Date.now());
+          pendingQueue.push(opp);
+          console.log(`[Engine] Queued ${routeKey} | net: ${netProfit.toFixed(3)}% | cooldown: ${ROUTE_COOLDOWN_MS / 1000}s`);
+        }
       }
     }
   }
@@ -257,4 +270,5 @@ function detectArbitrage(symbol) {
 
 // simulatePnL is now deprecated since pnl is calculated inline per matched volume
 
-module.exports = { detectArbitrage, engineEvents };
+// Expose cooldown map for debugging via API if needed
+module.exports = { detectArbitrage, engineEvents, routeCooldowns };
