@@ -50,6 +50,8 @@ const CSS_VARS = `
     --ex-binance:   oklch(78% 0.18 72);
     --ex-coindcx:   oklch(68% 0.17 240);
     --ex-bitkub:    oklch(72% 0.19 155);
+    --ex-okx:       oklch(85% 0.01 250);
+    --ex-kraken:    oklch(60% 0.22 300);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -124,11 +126,15 @@ const EXCHANGES = {
   binance: { color: 'var(--ex-binance)', icon: '⬡', short: 'BNB' },
   coindcx: { color: 'var(--ex-coindcx)', icon: '◎', short: 'CDX' },
   bitkub: { color: 'var(--ex-bitkub)', icon: '◆', short: 'BTK' },
+  okx: { color: 'var(--ex-okx)', icon: '◈', short: 'OKX' },
+  kraken: { color: 'var(--ex-kraken)', icon: '❈', short: 'KRK' },
 };
 const FEES = {
   binance: { maker: 0.1, taker: 0.1 },
   coindcx: { maker: 0.2, taker: 0.2 },
-  bitkub: { maker: 0.25, taker: 0.25 }
+  bitkub: { maker: 0.25, taker: 0.25 },
+  okx: { maker: 0.08, taker: 0.1 },
+  kraken: { maker: 0.16, taker: 0.26 }
 };
 const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT'];
 

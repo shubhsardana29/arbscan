@@ -2,7 +2,9 @@
 const FEES = {
   binance: { maker: 0.1, taker: 0.1 },
   coindcx: { maker: 0.2, taker: 0.2 },
-  bitkub: { maker: 0.25, taker: 0.25 }
+  bitkub: { maker: 0.25, taker: 0.25 },
+  okx: { maker: 0.08, taker: 0.1 },
+  kraken: { maker: 0.16, taker: 0.26 }
 };
 
 // Symbols to track — normalized format
@@ -21,7 +23,9 @@ const ROUTE_COOLDOWN_MS = 30 * 1000; // 30 seconds
 const STARTING_BALANCES = {
   binance: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
   coindcx: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
-  bitkub: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 }
+  bitkub: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
+  okx: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 },
+  kraken: { USDT: 5000, BTC: 0.5, ETH: 5, BNB: 50 }
 };
 
 module.exports = { FEES, SYMBOLS, MIN_PROFIT_THRESHOLD, ROUTE_COOLDOWN_MS, SIMULATION_CAPITAL: 1000, STARTING_BALANCES };

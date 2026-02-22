@@ -8,6 +8,8 @@ const path = require('path');
 const { connectBinance } = require('./connectors/binance');
 const { connectCoinDCX } = require('./connectors/coindcx');
 const { connectBitkub } = require('./connectors/bitkub');
+const { connectOKX } = require('./connectors/okx');
+const { connectKraken } = require('./connectors/kraken');
 const { detectArbitrage, engineEvents } = require('./arbitrageEngine');
 const { getAllPrices } = require('./priceStore');
 const { getAllBalances } = require('./balanceStore');
@@ -173,6 +175,8 @@ io.on('connection', (socket) => {
 connectBinance(SYMBOLS, onPriceUpdate);
 connectCoinDCX(SYMBOLS, onPriceUpdate);
 connectBitkub(SYMBOLS, onPriceUpdate);
+connectOKX(SYMBOLS, onPriceUpdate);
+connectKraken(SYMBOLS, onPriceUpdate);
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
