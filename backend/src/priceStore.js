@@ -6,9 +6,11 @@ const store = {};
 
 function updatePrice(exchange, symbol, bids, asks) {
   if (!store[symbol]) store[symbol] = {};
+
+  const existing = store[symbol][exchange] || {};
   store[symbol][exchange] = {
-    bids, // Array of { price: number, qty: number }
-    asks, // Array of { price: number, qty: number }
+    bids: bids || existing.bids || [],
+    asks: asks || existing.asks || [],
     ts: Date.now()
   };
 }
