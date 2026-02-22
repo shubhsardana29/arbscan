@@ -1368,55 +1368,100 @@ export default function App() {
 
             <div style={{ padding: 24, overflowY: 'auto' }}>
               {/* Overview */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>TOTAL OPPS</div>
-                  <div style={{ fontSize: 20, fontWeight: 'bold' }}>{backtestReport.overview.totalTrades}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
+                <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', marginBottom: 4 }}>TOTAL OPPS</div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold' }}>{backtestReport.overview.totalTrades}</div>
                 </div>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--green-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--green)', marginBottom: 4 }}>EXECUTED</div>
-                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--green)' }}>{backtestReport.overview.executed}</div>
+                <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--green-dim)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--green)', marginBottom: 4 }}>EXECUTED</div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--green)' }}>{backtestReport.overview.executed}</div>
                 </div>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--amber-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--amber)', marginBottom: 4 }}>SLIPPED</div>
-                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--amber)' }}>{backtestReport.overview.failedSlippage}</div>
+                <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--green-dim)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--green)', marginBottom: 4 }}>SUCCESS %</div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--green)' }}>{fmt(backtestReport.overview.successRate, 1)}%</div>
                 </div>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--red-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: 4 }}>LOW BAL</div>
-                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--red)' }}>{backtestReport.overview.failedBalance}</div>
+                <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--amber-dim)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--amber)', marginBottom: 4 }}>SLIPPED</div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--amber)' }}>{backtestReport.overview.failedSlippage}</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--red-dim)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--red)', marginBottom: 4 }}>LOW BAL</div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--red)' }}>{backtestReport.overview.failedBalance}</div>
                 </div>
               </div>
 
-              {/* Financials */}
-              <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 12 }}>Financials</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>TRADED VOLUME</div>
-                  <div style={{ fontSize: 16 }}>${fmt(backtestReport.financials.totalVolume)}</div>
+              {/* Financials & Risk */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginBottom: 24 }}>
+                <div>
+                  <h3 style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 10 }}>Performance</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>AVG PROFIT</div>
+                      <div style={{ fontSize: 14, color: 'var(--green)' }}>${fmt(backtestReport.financials.avgProfit)}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>TOTAL P&L</div>
+                      <div style={{ fontSize: 14, color: 'var(--green)', fontWeight: 'bold' }}>${fmt(backtestReport.financials.totalNetProfit)}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>BEST TRADE</div>
+                      <div style={{ fontSize: 14, color: 'var(--green)' }}>+${fmt(backtestReport.financials.bestTrade)}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>WORST TRADE</div>
+                      <div style={{ fontSize: 14, color: 'var(--red)' }}>-${fmt(Math.abs(backtestReport.financials.worstTrade))}</div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>NET PROFIT</div>
-                  <div style={{ fontSize: 16, color: 'var(--green)' }}>${fmt(backtestReport.financials.totalNetProfit)}</div>
-                </div>
-                <div style={{ background: 'var(--bg-surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-dim)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>NET ROI</div>
-                  <div style={{ fontSize: 16, color: 'var(--green)' }}>{fmt(backtestReport.financials.roi, 2)}%</div>
+                <div>
+                  <h3 style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 10 }}>Risk Metrics</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--red-dim)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>MAX DRAWDOWN</span>
+                      <span style={{ fontSize: 13, color: 'var(--red)', fontWeight: 'bold' }}>${fmt(backtestReport.risk.maxDrawdown)}</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--amber-dim)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>SHARPE RATIO</span>
+                      <span style={{ fontSize: 13, color: 'var(--amber)', fontWeight: 'bold' }}>{fmt(backtestReport.risk.sharpeRatio, 2)}</span>
+                    </div>
+                    <div style={{ background: 'var(--bg-surface)', padding: 10, borderRadius: 6, border: '1px solid var(--border-dim)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>VOLATILITY</span>
+                      <span style={{ fontSize: 13, color: 'var(--text-ghost)' }}>{fmt(backtestReport.risk.profitVolatility, 3)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Routes */}
-              <h3 style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 12 }}>Top Routes</h3>
+              <h3 style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 10 }}>Route Efficiency</h3>
               <div style={{ background: 'var(--bg-surface)', borderRadius: 6, border: '1px solid var(--border-dim)', overflow: 'hidden' }}>
-                {backtestReport.topRoutes.map((r, i) => (
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', padding: '6px 12px',
+                  background: 'var(--bg-panel)', fontSize: 10, color: 'var(--text-ghost)',
+                  borderBottom: '1px solid var(--border-mid)', textTransform: 'uppercase'
+                }}>
+                  <span style={{ width: 180 }}>Route Path</span>
+                  <span style={{ width: 80, textAlign: 'center' }}>Hit Rate</span>
+                  <span style={{ width: 80, textAlign: 'center' }}>Avg P&L</span>
+                  <span style={{ width: 80, textAlign: 'right' }}>Total</span>
+                </div>
+                {backtestReport.topRoutes.slice(0, 10).map((r, i) => (
                   <div key={r.route} style={{
-                    display: 'flex', justifyContent: 'space-between', padding: '8px 12px',
-                    borderBottom: i < backtestReport.topRoutes.length - 1 ? '1px solid var(--border-dim)' : 'none'
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px',
+                    borderBottom: i < backtestReport.topRoutes.length - 1 ? '1px solid var(--border-dim)' : 'none',
+                    fontSize: 12
                   }}>
-                    <span>{r.route}</span>
-                    <div style={{ display: 'flex', gap: 24 }}>
-                      <span style={{ color: 'var(--text-dim)' }}>{r.count} trades</span>
-                      <span style={{ color: 'var(--green)', width: 60, textAlign: 'right' }}>${fmt(r.profit)}</span>
-                    </div>
+                    <span style={{ width: 180, fontWeight: 500 }}>{r.route}</span>
+                    <span style={{ width: 80, textAlign: 'center', color: r.hitRate > 50 ? 'var(--green)' : 'var(--amber)' }}>
+                      {fmt(r.hitRate, 0)}%
+                    </span>
+                    <span style={{ width: 80, textAlign: 'center', color: 'var(--text-ghost)' }}>
+                      ${fmt(r.profit / (r.executed || 1))}
+                    </span>
+                    <span style={{ width: 80, textAlign: 'right', color: 'var(--green)', fontWeight: 'bold' }}>
+                      ${fmt(r.profit)}
+                    </span>
                   </div>
                 ))}
               </div>
