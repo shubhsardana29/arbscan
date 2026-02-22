@@ -11,7 +11,7 @@ const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT'];
 // Minimum net profit % to flag as opportunity (after all fees).
 // Combined fees: Binance 0.1% + CoinDCX 0.2% + Bitkub 0.25% — need margin above that.
 // 0.3% filters noise while still catching real micro-arb.
-const MIN_PROFIT_THRESHOLD = 0.3;
+const MIN_PROFIT_THRESHOLD = 0.02;
 
 // Per-route cooldown: once a route fires, block the same buyEx→sellEx+symbol for this long.
 // Prevents hammering the same opportunity hundreds of times per second.
